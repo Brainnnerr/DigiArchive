@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <title>User Dashboard Digital Archive</title>
+  <link rel="stylesheet" href="css/user.css">
+</head>
+
+<body>
+  <header class="main-header">
+    <div class="left-section">
+      <img src="images/essu-logo-mini.png" alt="Logo" class="logo">
+      <div class="title-text">
+        <div class="main-title">DIGITAL ARCHIVE</div>
+        <div class="sub-title">Eastern Samar State University</div>
+      </div>
+    </div>
+    <div class="center-section">
+      <input type="text" id="searchBar" placeholder="Search for..." />
+    </div>
+
+    <div class="right-section">
+      <select id="categoryFilter">
+        <option value="all">Category</option>
+        <option value="Computer Science">Computer Science</option>
+        <option value="Engineering">Engineering</option>
+        <option value="Engineering">Engineering</option>
+        <option value="Education">Education</option>
+        <option value="Business">Business</option>
+        <option value="Arts & Humanities">Arts & Humanities</option>
+        <option value="Mathematics">Mathematics</option>
+        <option value="Health & Medicine">Health & Medicine</option>
+        <option value="Law">Law</option>
+        <option value="Science">Science</option>
+        <option value="Social Sciences">Social Sciences</option>
+        <option value="Environmental Studies">Environmental Studies</option>
+        <option value="Information Technology">Information Technology</option>
+        <option value="Design & Architecture">Design & Architecture</option>
+        <option value="Psychology">Psychology</option>
+        <option value="Languages & Literature">Languages & Literature</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <button class="menu-btn">
+        <i class="ri-menu-line"></i>
+      </button>
+    </div>
+  </header>
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="menu-header">Menu</div>
+    <a href="profile.html" id="profileLink">
+      <i class="ri-user-line"></i>
+      Profile
+      <span class="sidebar-badge" id="notifBadge">3</span>
+    </a>
+    <hr />
+    <a href="userdash.html"><i class="ri-upload-line"></i> Submit</a>
+    <hr />
+    <a href="settings.html"><i class="ri-settings-3-line"></i> Settings</a>
+    <hr />
+    <a href="#" onclick="handleLogout()"><i class="ri-logout-box-r-line"></i> Logout</a>
+  </div>
+
+
+
+  <!-- Logout Confirmation Modal -->
+  <div id="logoutModal" class="modal">
+    <div class="modal-content">
+      <p>Are you sure you want to logout?</p>
+      <div class="modal-buttons">
+        <button onclick="confirmLogout()" class="confirm-btn">Yes</button>
+        <button onclick="closeModal()" class="cancel-btn">No</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="thesisContainer"></div>
+  <p id="noUploadsMsg" style="display: none;">No uploaded theses found.</p>
+
+  <!-- Keep the rest of your HTML as is up until the <script type="module"> -->
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+    import { getDatabase, ref, get, onValue } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeVVb7PfLG4kvw4HYgaUqTxzcgY9qpi-A",
+      authDomain: "e-compedium.firebaseapp.com",
+      databaseURL: "https://e-compedium-default-rtdb.firebaseio.com/",
+      projectId: "e-compedium",
+      storageBucket: "e-compedium.firebasestorage.app",
+      messagingSenderId: "1084002262207",
+      appId: "1:1084002262207:web:ecec40b9ed2020a02a3a0a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const container = document.getElementById("thesisContainer");
+    const msg = document.getElementById("noUploadsMsg");
+    const searchBar = document.getElementById("searchBar");
+    const categoryFilter = document.getElementById("categoryFilter");
+    const badgeEl = document.getElementById("notifBadge");
+
+    let uploadedTheses = [];
+
+    function escapeHtml(text = "") {
+      return text.replace(/[&<>"']/g, m => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      })[m]);
+    }
+
+    function truncateText(text, maxLength = 150) {
+      return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
+    }
+
+    function renderFilteredTheses() {
+      const searchQuery = searchBar.value.toLowerCase();
+      const selectedCategory = categoryFilter.value.toLowerCase();
+
+      const filtered = uploadedTheses.filter(thesis => {
+        const title = (thesis.thesisTitle || "").toLowerCase();
+        const desc = (thesis.thesisDescription || "").toLowerCase();
+        const authors = (thesis.authors || []).map(a => a.toLowerCase()).join(" ");
+        const category = (thesis.thesisCategory || "").toLowerCase();
+
+        const matchesSearch = title.includes(searchQuery) || desc.includes(searchQuery) || authors.includes(searchQuery);
+        const matchesCategory = selectedCategory === "all" || category === selectedCategory;
+
+        return matchesSearch && matchesCategory;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = "";
+        msg.style.display = "block";
+        return;
+      }
+
+      container.innerHTML = filtered.map((thesis, index) => {
+        const fullDescription = escapeHtml(thesis.thesisDescription || "");
+        const shortDescription = escapeHtml(truncateText(thesis.thesisDescription || ""));
+        const isTruncated = fullDescription.length > 150;
+
+        return `
+        <div class="card">
+          <div class="thesis-title">${escapeHtml(thesis.thesisTitle)}</div>
+          <div class="thesis-description" id="desc-${index}" data-expanded="false">
+            ${isTruncated ? shortDescription : fullDescription}
+            ${isTruncated ? `<span class="toggle-link" onclick="toggleDescription(${index}, \`${fullDescription}\`, \`${shortDescription}\`)">See more...</span>` : ""}
+          </div>
+          <div class="thesis-authors">Authors: ${(thesis.authors || []).map(a => escapeHtml(a)).join(", ")}</div>
+          <div class="btn-group">
+            <button class="view-btn" onclick="window.open('${thesis.pdfUrl}', '_blank')">View</button>
+            <button class="download-btn" onclick="downloadPDF('${thesis.pdfUrl}', '${escapeHtml(thesis.thesisTitle)}')">Download</button>
+          </div>
+        </div>
+      `;
+      }).join("");
+
+      msg.style.display = "none";
+    }
+
+    function loadUploadedTheses() {
+      const thesesRef = ref(db, "approvedTheses");
+      onValue(thesesRef, (snap) => {
+        if (!snap.exists()) {
+          uploadedTheses = [];
+          container.innerHTML = "";
+          msg.style.display = "block";
+          return;
+        }
+        uploadedTheses = Object.values(snap.val());
+        uploadedTheses.sort((a, b) => (b.dateSubmitted || 0) - (a.dateSubmitted || 0));
+        renderFilteredTheses();
+      });
+    }
+
+    searchBar.addEventListener("input", renderFilteredTheses);
+    categoryFilter.addEventListener("change", renderFilteredTheses);
+
+    window.downloadPDF = function (pdfUrl, title = "thesis") {
+      const urlParts = pdfUrl.split("/upload/");
+      if (urlParts.length !== 2) {
+        console.error("Invalid Cloudinary URL format");
+        window.open(pdfUrl, "_blank");
+        return;
+      }
+      const downloadUrl = `${urlParts[0]}/upload/fl_attachment:${encodeURIComponent(title)}.pdf/${urlParts[1]}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    window.toggleDescription = function (index, fullText, shortText) {
+      const descEl = document.getElementById(`desc-${index}`);
+      const isExpanded = descEl.getAttribute("data-expanded") === "true";
+
+      if (isExpanded) {
+        descEl.innerHTML = `${shortText}<span class="toggle-link" onclick="toggleDescription(${index}, \`${fullText}\`, \`${shortText}\`)">See more...</span>`;
+        descEl.setAttribute("data-expanded", "false");
+      } else {
+        descEl.innerHTML = `${fullText}<span class="toggle-link" onclick="toggleDescription(${index}, \`${fullText}\`, \`${shortText}\`)">See less</span>`;
+        descEl.setAttribute("data-expanded", "true");
+      }
+    };
+
+    window.handleSubmitThesis = function () {
+      window.location.href = "userdash.html";
+    };
+
+    window.handleLogout = function () {
+      document.getElementById("logoutModal").style.display = "block";
+    };
+
+    window.confirmLogout = function () {
+      window.location.href = "login.html";
+    };
+
+    window.closeModal = function () {
+      document.getElementById("logoutModal").style.display = "none";
+    };
+
+    window.onclick = function (event) {
+      const modal = document.getElementById("logoutModal");
+      if (event.target === modal) {
+        modal.style.display = "none";
+      }
+    };
+
+    function watchRevisionRequests(uid) {
+      const thesesRef = ref(db, `users/${uid}/theses`);
+      onValue(thesesRef, snapshot => {
+        const data = snapshot.val();
+        if (!data) {
+          updateNotificationCount(0);
+          return;
+        }
+        const count = Object.values(data).filter(thesis => thesis.revisionRequest).length;
+        updateNotificationCount(count);
+      });
+    }
+
+    function updateNotificationCount(count) {
+      if (count > 0) {
+        badgeEl.textContent = count > 99 ? "99+" : count;
+        badgeEl.style.display = "inline-block";
+      } else {
+        badgeEl.style.display = "none";
+      }
+    }
+
+    window.handleNotifications = function () {
+      updateNotificationCount(0);
+      window.location.href = "profile.html";
+    };
+
+    document.querySelector(".menu-btn").addEventListener("click", () => {
+      document.getElementById("sidebar").classList.toggle("active");
+    });
+
+    document.addEventListener("click", function (event) {
+      const sidebar = document.getElementById("sidebar");
+      const menuBtn = document.querySelector(".menu-btn");
+
+      if (!sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
+        sidebar.classList.remove("active");
+      }
+    });
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        loadUploadedTheses();
+        watchRevisionRequests(user.uid);
+      } else {
+        window.location.href = "login.html";
+      }
+    });
+  </script>
+
+</body>
+
+</html>

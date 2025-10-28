@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Archive Login</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <link rel="stylesheet" href="css/login.css">
+  <style>
+    html,
+    body {
+      margin: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: url('images/image.png') no-repeat center center/cover;
+      position: relative;
+      min-height: 100%;
+      color: white;
+    }
+
+    .logo-section {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .logo-section img {
+      max-width: 150px;
+      margin-bottom: 20px;
+    }
+
+    .logo-section h1 {
+      font-size: 24px;
+      letter-spacing: 2px;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      .login-box {
+        flex-direction: column;
+      }
+
+      .logo-section {
+        order: -1;
+        padding: 20px;
+      }
+
+      .form-section {
+        padding: 30px;
+      }
+    }
+  </style>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <div class="login-box">
+
+      <!-- ROLE SELECTION -->
+      <div class="form-section active" id="roleSelect">
+        <h1>Login As</h1>
+        <button class="login-btn" onclick="showAdmin()">Admin</button>
+        <button class="login-btn" onclick="showStudent()">Student</button>
+      </div>
+
+      <!-- ADMIN LOGIN -->
+      <div class="form-section" id="adminLogin">
+        <h1>Admin Login</h1>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" placeholder="Enter Admin Password" id="adminPassword" autocomplete="off">
+        </div>
+        <button class="login-btn" onclick="handleAdminLogin()">LOGIN</button>
+        <div class="register-link">
+          <a href="#" onclick="backToRole()">Back</a>
+        </div>
+      </div>
+
+      <!-- STUDENT LOGIN -->
+      <div class="form-section" id="studentLogin">
+        <h1>Student Login</h1>
+        <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input type="email" placeholder="Email" id="email" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" placeholder="Password" id="password" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <i class="fas fa-id-card"></i>
+          <input type="text" placeholder="Student Number (xx-xxxxx)" id="studentNumber" autocomplete="off">
+        </div>
+        <button class="login-btn" onclick="handleLogin()">LOGIN</button>
+        <div class="register-link">
+          Don't have an account? <a href="#" onclick="showRegister()">Register</a> |
+          <a href="#" onclick="backToRole()">Back</a>
+        </div>
+      </div>
+
+      <!-- STUDENT REGISTER -->
+      <div class="form-section" id="registerForm">
+        <h1>Register</h1>
+        <div class="input-group">
+          <i class="fas fa-user"></i>
+          <input type="text" placeholder="Full Name" id="regName" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <i class="fas fa-envelope"></i>
+          <input type="email" placeholder="Email" id="regEmail" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" placeholder="Password" id="regPassword" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <i class="fas fa-id-card"></i>
+          <input type="text" placeholder="Student Number (xx-xxxxx)" id="regStudent" autocomplete="off">
+        </div>
+        <button class="login-btn" onclick="handleRegister()">REGISTER</button>
+        <div class="register-link">
+          Already have an account? <a href="#" onclick="showStudent()">Login</a>
+        </div>
+      </div>
+
+      <!-- LOGO -->
+      <div class="logo-section">
+        <img src="images/essu-logo-mini.png" alt="University Logo">
+        <h1>DIGITAL ARCHIVE</h1>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut }
+      from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+    import { getDatabase, ref, set, get, child }
+      from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeVVb7PfLG4kvw4HYgaUqTxzcgY9qpi-A",
+      authDomain: "e-compedium.firebaseapp.com",
+      databaseURL: "https://e-compedium-default-rtdb.firebaseio.com/",
+      projectId: "e-compedium",
+      storageBucket: "e-compedium.firebasestorage.app",
+      messagingSenderId: "1084002262207",
+      appId: "1:1084002262207:web:ecec40b9ed2020a02a3a0a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    // ---------- UI SWITCHING ----------
+    function hideAll() {
+      document.querySelectorAll('.form-section').forEach(f => f.classList.remove("active"));
+      clearInputs();
+    }
+    function clearInputs() {
+      document.querySelectorAll("input").forEach(i => i.value = "");
+    }
+    window.showAdmin = () => { hideAll(); document.getElementById('adminLogin').classList.add("active"); }
+    window.showStudent = () => { hideAll(); document.getElementById('studentLogin').classList.add("active"); }
+    window.showRegister = () => { hideAll(); document.getElementById('registerForm').classList.add("active"); }
+    window.backToRole = () => { hideAll(); document.getElementById('roleSelect').classList.add("active"); }
+
+    function toast(message, bg = "#333") {
+      Toastify({ text: message, duration: 3000, gravity: "top", position: "right", backgroundColor: bg }).showToast();
+    }
+
+    // ---------- ADMIN LOGIN ----------
+    window.handleAdminLogin = async function () {
+      const enteredPwd = document.getElementById("adminPassword").value.trim();
+      if (!enteredPwd) return toast("Enter password", "red");
+
+      try {
+        const snapshot = await get(child(ref(db), "admin/password"));
+        if (snapshot.exists()) {
+          const dbPwd = snapshot.val();
+          if (enteredPwd === dbPwd) {
+            toast("Welcome Admin!", "green");
+            localStorage.setItem("isAdmin", true);
+            window.location.href = "admindash.html"; // redirect to admin page
+          } else {
+            toast("Invalid Admin Password", "red");
+          }
+        } else {
+          toast("Admin password not found in database!", "red");
+        }
+      } catch (error) {
+        toast("Error connecting to database", "red");
+        console.error(error);
+      }
+    };
+
+    // ---------- STUDENT REGISTER ----------
+    window.handleRegister = async function () {
+      const name = document.getElementById('regName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value.trim();
+      const student = document.getElementById('regStudent').value.trim();
+
+      if (!name || !email || !password || !student) {
+        return toast("Please fill all fields", "red");
+      }
+
+      // ✅ Validate student number format (XX-XXXXX)
+      const studentPattern = /^\d{2}-\d{5}$/;
+      if (!studentPattern.test(student)) {
+        return toast("Invalid student number format (xx-xxxxx)", "red");
+      }
+
+      try {
+        const studentRef = ref(db, 'student_numbers/' + student);
+        const snapshot = await get(studentRef);
+        if (snapshot.exists()) {
+          return toast("Student number already used", "red");
+        }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = userCredential.user.uid;
+
+        await set(studentRef, uid);
+        await set(ref(db, 'users/' + uid), { name, email, student });
+
+        toast("Registered successfully!", "green");
+        await signOut(auth);
+        showStudent();
+      } catch (error) {
+        toast(error.message, "red");
+      }
+    };
+
+    // ---------- STUDENT LOGIN ----------
+    window.handleLogin = async function () {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const studentNumber = document.getElementById('studentNumber').value.trim();
+
+      if (!email || !password || !studentNumber) {
+        return toast("Please fill all fields", "red");
+      }
+
+      // ✅ Validate student number format (XX-XXXXX)
+      const studentPattern = /^\d{2}-\d{5}$/;
+      if (!studentPattern.test(studentNumber)) {
+        return toast("Invalid student number format (xx-xxxxx)", "red");
+      }
+
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const uid = userCredential.user.uid;
+        const snapshot = await get(child(ref(db), `users/${uid}`));
+
+        if (!snapshot.exists()) {
+          return toast("User not found", "red");
+        }
+
+        const userData = snapshot.val();
+        if (userData.student.trim() !== studentNumber.trim()) {
+          await signOut(auth);
+          return toast("Wrong student number", "red");
+        }
+
+        localStorage.setItem("currentUser", JSON.stringify(userData));
+        toast("Login successful!", "green");
+        window.location.href = "user.html";
+      } catch (error) {
+        toast(error.message, "red");
+      }
+    };
+
+  
+document.addEventListener("DOMContentLoaded", () => {
+ 
+  document.querySelectorAll(".form-section").forEach(section => {
+    const inputs = section.querySelectorAll("input");
+    inputs.forEach((input, index) => {
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+
+        
+          const nextInput = inputs[index + 1];
+          if (nextInput) {
+            nextInput.focus();
+          } else {
+           
+            const btn = section.querySelector("button.login-btn");
+            if (btn) btn.click();
+          }
+        }
+      });
+    });
+  });
+});
+
+  </script>
+
+</body>
+
+</html>

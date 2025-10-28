@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>User Profile | Digital Archive</title>
+  <link rel="stylesheet" href="css/profile.css">
+</head>
+
+<body>
+  <header class="main-header">
+    <h1>My Profile</h1>
+  </header>
+
+  <div class="container">
+    <div class="profile-info" id="profileInfo">
+      <div class="profile-pic-wrapper">
+        <img id="profilePicture" src="" alt="Profile Picture" />
+        <button class="change-pic-btn" id="changePicBtn">Change Profile Picture</button>
+        <input type="file" id="profilePicInput" accept="image/*" />
+      </div>
+      <p><strong>Name:</strong> <span id="name"></span></p>
+      <p><strong>Email:</strong> <span id="email"></span></p>
+      <p><strong>Student Number:</strong> <span id="studentNumber"></span></p>
+    </div>
+
+
+    <div class="thesis-section">
+      <div class="tab-header">
+        <div class="tab-label active-tab" id="approvedTab">Approved</div>
+        <div class="tab-label" id="revisionTab">
+          Revisions <span id="revisionBadge" class="badge" style="display:none;">0</span>
+        </div>
+      </div>
+      <div id="approvedContainer" style="display: block;"></div>
+      <div id="revisionContainer" style="display: none;"></div>
+      <p id="noTheses" style="display: none;"></p>
+    </div>
+
+    <!-- Resend Modal -->
+    <div id="resendModal">
+      <div class="modal-content">
+        <h3>Resend Thesis</h3>
+        <p>Please upload a new PDF file:</p>
+        <input type="file" id="resendPdfInput" accept="application/pdf" />
+        <div class="modal-actions">
+          <div id="resendLoading" style="display:none;"></div>
+          <button id="resendCancelBtn" type="button">Cancel</button>
+          <button id="resendConfirmBtn" type="button">Upload</button>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="loadingOverlay">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p>Uploading, please wait...</p>
+      </div>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+      import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDeVVb7PfLG4kvw4HYgaUqTxzcgY9qpi-A",
+        authDomain: "e-compedium.firebaseapp.com",
+        databaseURL: "https://e-compedium-default-rtdb.firebaseio.com/",
+        projectId: "e-compedium",
+        storageBucket: "e-compedium.firebasestorage.app",
+        messagingSenderId: "1084002262207",
+        appId: "1:1084002262207:web:ecec40b9ed2020a02a3a0a"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getDatabase(app);
+
+      const nameEl = document.getElementById("name");
+      const emailEl = document.getElementById("email");
+      const studentNumberEl = document.getElementById("studentNumber");
+      const noThesesMsg = document.getElementById("noTheses");
+
+      const profilePicInput = document.getElementById("profilePicInput");
+      const profilePicture = document.getElementById("profilePicture");
+      const changePicBtn = document.getElementById("changePicBtn");
+
+      const approvedTab = document.getElementById("approvedTab");
+      const revisionTab = document.getElementById("revisionTab");
+      const approvedContainer = document.getElementById("approvedContainer");
+      const revisionContainer = document.getElementById("revisionContainer");
+
+      const CLOUD_NAME = "dsinpip3y";
+      const UPLOAD_PRESET = "ecompendium";
+
+      function escapeHtml(text = "", preserveLineBreaks = false) {
+        let escaped = text.replace(/[&<>"']/g, m => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+        })[m]);
+
+        if (preserveLineBreaks) {
+          escaped = escaped.replace(/\n/g, "<br>");
+        }
+
+        return escaped;
+      }
+
+      async function loadUserTheses(uid) {
+        const userRef = ref(db, "users/" + uid);
+        const snap = await get(userRef);
+
+        if (!snap.exists()) {
+          noThesesMsg.style.display = "block";
+          nameEl.textContent = "Not set";
+          emailEl.textContent = "Not set";
+          studentNumberEl.textContent = "Not set";
+          profilePicture.src = "";
+          profilePicture.alt = "No profile picture";
+          approvedContainer.innerHTML = "";
+          revisionContainer.innerHTML = "";
+          return;
+        }
+
+        const userData = snap.val();
+        const thesesObj = userData.theses || {};
+
+
+        nameEl.textContent = userData.name || "Not set";
+        emailEl.textContent = userData.email || "Not set";
+        studentNumberEl.textContent = userData.student || "Not set";
+        profilePicture.src = userData.profilePicUrl || "https://via.placeholder.com/150?text=No+Image";
+        profilePicture.alt = userData.name ? `${userData.name}'s Profile Picture` : "Profile Picture";
+
+        approvedContainer.innerHTML = "";
+        revisionContainer.innerHTML = "";
+
+        renderRevisionRequests(thesesObj);
+        renderApprovedTheses(thesesObj);
+
+      }
+
+      function renderApprovedTheses(thesesObj) {
+        const approvedTheses = Object.entries(thesesObj).filter(([id, thesis]) => thesis.approved === true);
+
+        approvedContainer.innerHTML = "";
+
+        if (approvedTheses.length === 0) {
+          approvedContainer.innerHTML = `<p style="text-align:center;">No approved theses found.</p>`;
+          return;
+        }
+
+        approvedTheses.forEach(([thesisId, thesis]) => {
+          approvedContainer.innerHTML += `
+      <div class="card">
+        <div class="thesis-title">${escapeHtml(thesis.thesisTitle)} </div>
+        <div><strong>Authors:</strong> ${(thesis.authors || []).map(a => escapeHtml(a)).join(", ")}</div>
+       
+
+      </div>
+    `;
+        });
+      }
+
+
+      function renderRevisionRequests(thesesObj) {
+        const revisionTheses = Object.entries(thesesObj).filter(([id, thesis]) => thesis.revisionRequest);
+        const badge = document.getElementById("revisionBadge");
+
+        revisionContainer.innerHTML = "";
+
+        if (revisionTheses.length === 0) {
+          revisionContainer.innerHTML = `<p style="text-align:center;">No revision requests found.</p>`;
+          badge.style.display = "none"; // hide badge
+          return;
+        }
+
+        // show badge with number
+        badge.textContent = revisionTheses.length;
+        badge.style.display = "inline-block";
+
+        revisionTheses.forEach(([thesisId, thesis]) => {
+          const rev = thesis.revisionRequest;
+          if (!rev || !rev.revisionType || !rev.comments) return;
+
+          const fullComments = rev.comments;
+          const maxLength = 150;
+          const isLong = fullComments.length > maxLength;
+          const shortComments = isLong ? fullComments.slice(0, maxLength) + "..." : fullComments;
+
+          const commentId = `comment-${thesisId}`;
+
+          revisionContainer.innerHTML += `
+      <div class="card revision-card">
+        <div class="thesis-title">${escapeHtml(thesis.thesisTitle)} (Revision Requested)</div>
+        <div><strong>Type:</strong> ${escapeHtml(rev.revisionType)}</div>
+        <div><strong>Comments:</strong> 
+          <span id="${commentId}" class="comment-text">${escapeHtml(shortComments, true)}</span>
+
+          ${isLong ? `<button class="toggle-comment-btn" data-target="${commentId}" style="margin-left:8px; background:none; border:none; color:#005700; cursor:pointer; font-weight:bold;">Show More</button>` : ""}
+        </div>
+        <div><small>Requested on: ${new Date(rev.dateRequested).toLocaleString()}</small></div>
+        <div class="btn-group">
+          <button class="resend-btn" onclick="resendThesis('${thesisId}')">Resend</button>
+        </div>
+      </div>
+    `;
+        });
+
+        // Add event listeners for show more/less buttons
+        revisionContainer.querySelectorAll(".toggle-comment-btn").forEach(button => {
+          button.addEventListener("click", () => {
+            const targetId = button.getAttribute("data-target");
+            const commentSpan = document.getElementById(targetId);
+
+            if (button.textContent === "Show More") {
+              // Expand
+              const thesisId = targetId.replace("comment-", "");
+              const fullText = thesesObj[thesisId].revisionRequest.comments;
+              commentSpan.innerHTML = escapeHtml(fullText, true);
+
+              button.textContent = "Show Less";
+            } else {
+              // Collapse
+              const thesisId = targetId.replace("comment-", "");
+              const fullText = thesesObj[thesisId].revisionRequest.comments;
+              const shortText = fullText.slice(0, 150) + "...";
+              commentSpan.innerHTML = escapeHtml(shortText, true);
+
+              button.textContent = "Show More";
+            }
+          });
+        });
+      }
+
+
+      changePicBtn.addEventListener("click", () => profilePicInput.click());
+
+      profilePicInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file || !file.type.startsWith("image/")) {
+          alert("Please select a valid image file.");
+          return;
+        }
+
+        const user = auth.currentUser;
+        if (!user) {
+          alert("User not authenticated.");
+          return;
+        }
+
+        try {
+          changePicBtn.disabled = true;
+          changePicBtn.textContent = "Uploading...";
+          const url = await uploadProfilePicture(file, user.uid);
+          const userRef = ref(db, "users/" + user.uid);
+          await update(userRef, { profilePicUrl: url });
+          profilePicture.src = url;
+          alert("Profile picture updated successfully!");
+        } catch (err) {
+          console.error(err);
+          alert("Failed to update profile picture.");
+        } finally {
+          changePicBtn.disabled = false;
+          changePicBtn.textContent = "Change Profile Picture";
+          profilePicInput.value = "";
+        }
+      });
+
+      async function uploadProfilePicture(file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", UPLOAD_PRESET);
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        return data.secure_url;
+      }
+
+
+      let currentThesisId = null; // 👈 declare globally
+
+      window.resendThesis = function (thesisId) {
+        currentThesisId = thesisId;
+        document.getElementById("resendPdfInput").value = "";
+        document.getElementById("resendModal").style.display = "flex";
+      };
+
+      document.getElementById("resendConfirmBtn").onclick = async () => {
+        const file = document.getElementById("resendPdfInput").files[0];
+        if (!file || file.type !== "application/pdf") {
+          alert("Please select a valid PDF file.");
+          return;
+        }
+
+        const user = auth.currentUser;
+        if (!user || !currentThesisId) {
+          alert("Missing user or thesis ID.");
+          return;
+        }
+
+        // UI elements
+        const resendBtn = document.getElementById("resendConfirmBtn");
+        const cancelBtn = document.getElementById("resendCancelBtn");
+        const loadingEl = document.getElementById("resendLoading");
+        const loadingOverlay = document.getElementById("loadingOverlay");
+
+        try {
+          // Show small spinner inside modal
+          resendBtn.disabled = true;
+          cancelBtn.disabled = true;
+          loadingEl.style.display = "inline-block";
+
+          // Show full-screen overlay
+          loadingOverlay.style.display = "flex";
+
+          // Upload thesis
+          await doResendUpload(user.uid, currentThesisId, file);
+
+          alert("Thesis re-uploaded successfully! Pending admin approval.");
+          document.getElementById("resendModal").style.display = "none";
+
+          // Refresh user data
+          loadUserTheses(user.uid);
+        } catch (err) {
+          console.error(err);
+          alert("Failed to resend thesis.");
+        } finally {
+          // Reset UI
+          resendBtn.disabled = false;
+          cancelBtn.disabled = false;
+          loadingEl.style.display = "none";
+          loadingOverlay.style.display = "none";
+          document.getElementById("resendPdfInput").value = "";
+          currentThesisId = null;
+        }
+      };
+
+      document.getElementById("resendCancelBtn").onclick = () => {
+        document.getElementById("resendModal").style.display = "none";
+        document.getElementById("resendPdfInput").value = "";
+        currentThesisId = null;
+      };
+
+
+
+
+      async function doResendUpload(uid, thesisId, file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", UPLOAD_PRESET);
+
+        // Cloudinary upload
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`, {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        const url = data.secure_url;
+
+        // Update Firebase
+        const thesisRef = ref(db, `users/${uid}/theses/${thesisId}`);
+        await update(thesisRef, {
+          thesisPdfUrl: url,
+          revisionRequest: null,  // clear revision
+          approved: false         // back to pending admin approval
+        });
+      }
+
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          loadUserTheses(user.uid);
+        } else {
+          alert("You are not logged in. Redirecting to login...");
+          window.location.href = "login.html";
+        }
+      });
+
+      approvedTab.addEventListener("click", () => {
+        approvedTab.classList.add("active-tab");
+        revisionTab.classList.remove("active-tab");
+        approvedContainer.style.display = "block";
+        revisionContainer.style.display = "none";
+        moveUnderline(approvedTab); // 💡 Add this line
+      });
+
+      revisionTab.addEventListener("click", () => {
+        revisionTab.classList.add("active-tab");
+        approvedTab.classList.remove("active-tab");
+        approvedContainer.style.display = "none";
+        revisionContainer.style.display = "block";
+        moveUnderline(revisionTab); // 💡 Add this line
+      });
+
+
+      function moveUnderline(tab) {
+        const underline = document.getElementById("tabUnderline");
+        const tabRect = tab.getBoundingClientRect();
+        const headerRect = tab.parentElement.getBoundingClientRect();
+        underline.style.transform = `translateX(${tabRect.left - headerRect.left}px)`;
+        underline.style.width = `${tabRect.width}px`;
+      }
+
+
+
+      window.addEventListener("load", () => {
+        moveUnderline(document.querySelector(".tab-label.active-tab"));
+      });
+
+      window.addEventListener("resize", () => {
+        moveUnderline(document.querySelector(".tab-label.active-tab"));
+      });
+
+
+
+    </script>
+</body>
+
+</html>

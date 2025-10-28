@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - E‑Compendium</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+
+<body>
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo-heading">
+      <img src="images/essu-logo-mini.png" alt="Logo" class="logo">
+      <h3>ADMIN DASHBOARD</h3>
+    </div>
+    <ul>
+      <li class="active" data-tab="pending">Pending Thesis</li>
+      <li data-tab="uploaded">Uploaded Thesis</li>
+      <li data-tab="needsRevision">Revision Requests</li>
+      <li style="margin-top: auto; cursor:pointer; color:#ffaaaa;" id="logoutBtn">Logout</li>
+    </ul>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <h1 id="tabTitle">Pending Thesis</h1>
+    <input type="text" id="searchInput" placeholder="Search by title, author, or category..."
+      style="display:none; margin-bottom: 20px; padding: 10px; width: 100%; max-width: 400px; font-size: 1rem; border: 1px solid #ccc; border-radius: 6px;" />
+
+    <div id="thesesContainer"></div>
+    <p id="noThesesMsg" style="display:none;">No theses available.</p>
+  </div>
+
+  <!-- Revision Modal -->
+  <div id="revisionModal">
+    <div class="modal-content">
+      <h3>Request Revision</h3>
+      <label><input type="radio" name="revisionType" value="minor" checked /> Minor Revision</label>
+      <label><input type="radio" name="revisionType" value="major" /> Major Revision</label>
+      <br />
+      <textarea id="revisionComments" rows="5" placeholder="Add your comments here..."></textarea>
+      <br /><br />
+      <button id="submitRevisionBtn">Send Revision</button>
+      <button id="cancelRevisionBtn">Cancel</button>
+    </div>
+  </div>
+
+  <button id="addThesisBtn" title="Upload Thesis">+</button>
+
+  <!-- Admin Upload Modal -->
+  <div id="uploadModal">
+    <div class="upload-modal-content">
+      <h3>Upload Thesis</h3>
+      <input type="text" id="uploadTitle" placeholder="Thesis Title" />
+      <textarea id="uploadDescription" placeholder="Thesis Description"></textarea>
+      <input type="text" id="uploadAuthors" placeholder="Authors (comma separated)" />
+      <select id="uploadCategory">
+        <option value="">-- Select Category --</option>
+        <option value="Computer Science">Computer Science</option>
+        <option value="Engineering">Engineering</option>
+        <option value="Education">Education</option>
+        <option value="Business">Business</option>
+        <option value="Arts & Humanities">Arts & Humanities</option>
+        <option value="Mathematics">Mathematics</option>
+        <option value="Health & Medicine">Health & Medicine</option>
+        <option value="Law">Law</option>
+        <option value="Science">Science</option>
+        <option value="Social Sciences">Social Sciences</option>
+        <option value="Environmental Studies">Environmental Studies</option>
+        <option value="Information Technology">Information Technology</option>
+        <option value="Design & Architecture">Design & Architecture</option>
+        <option value="Psychology">Psychology</option>
+        <option value="Languages & Literature">Languages & Literature</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <input type="file" id="uploadPDF" accept="application/pdf" />
+
+      <div class="modal-buttons">
+        <button id="uploadSubmitBtn">Upload</button>
+        <button id="uploadCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+
+
+  <!-- Firebase Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+    import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeVVb7PfLG4kvw4HYgaUqTxzcgY9qpi-A",
+      authDomain: "e-compedium.firebaseapp.com",
+      databaseURL: "https://e-compedium-default-rtdb.firebaseio.com/",
+      projectId: "e-compedium",
+      storageBucket: "e-compedium.firebasestorage.app",
+      messagingSenderId: "1084002262207",
+      appId: "1:1084002262207:web:ecec40b9ed2020a02a3a0a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  // Load default tab (Pending Thesis)
+  currentTab = "pending";
+ renderTheses();
+});
+
+
+    // Cloudinary config
+    const CLOUDINARY_UPLOAD_PRESET = "ecompendium"; 
+    const CLOUDINARY_CLOUD_NAME = "dsinpip3y"; 
+
+
+    const container = document.getElementById("thesesContainer"),
+      msg = document.getElementById("noThesesMsg"),
+      titleEl = document.getElementById("tabTitle"),
+      logoutBtn = document.getElementById("logoutBtn");
+    const searchInput = document.getElementById("searchInput");
+
+    const revisionModal = document.getElementById("revisionModal");
+    const revisionCommentsEl = document.getElementById("revisionComments");
+    const submitRevisionBtn = document.getElementById("submitRevisionBtn");
+    const cancelRevisionBtn = document.getElementById("cancelRevisionBtn");
+
+    let revisionUserId = null;
+    let revisionThesisId = null;
+    let currentTab = "pending";
+
+    // Handle logout
+    logoutBtn.onclick = () => {
+      signOut(auth).then(() => {
+        window.location.href = "login.html";
+      }).catch(console.error);
+    };
+
+    // Switch Tabs
+    document.querySelectorAll(".sidebar ul li").forEach(li => {
+      if (li.id === "logoutBtn") return; // Skip logout button
+
+      li.onclick = () => {
+        document.querySelectorAll(".sidebar ul li").forEach(x => x.classList.remove("active"));
+        li.classList.add("active");
+        currentTab = li.dataset.tab;
+        titleEl.textContent = li.textContent;
+
+        // Show search bar only for 'uploaded' tab
+        searchInput.style.display = currentTab === "uploaded" ? "block" : "none";
+        searchInput.value = ""; // Clear previous search
+       if (currentTab === "pending") {
+  renderPendingThesesFromNode();
+} else if (currentTab === "uploaded" || currentTab === "needsRevision") {
+  renderTheses();
+}
+      };
+
+    });
+
+    window.onload = () => {
+  currentTab = "pending";
+  renderPendingThesesFromNode();
+};
+
+    function escapeHtml(text = "", preserveLineBreaks = false) {
+      let escaped = text.replace(/[&<>"']/g, m => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      })[m]);
+
+      if (preserveLineBreaks) {
+        escaped = escaped.replace(/\n/g, "<br>");
+      }
+
+      return escaped;
+    }
+
+
+    async function renderTheses() {
+      let allTheses = [];
+      const query = searchInput.value.trim().toLowerCase();
+
+      if (currentTab === "uploaded") {
+        const approvedSnap = await get(ref(db, "approvedTheses"));
+        if (approvedSnap.exists()) {
+          const approvedTheses = approvedSnap.val();
+          for (const [thesisId, thesis] of Object.entries(approvedTheses)) {
+            const title = (thesis.thesisTitle || "").toLowerCase();
+            const category = (thesis.thesisCategory || "").toLowerCase();
+            const authors = (thesis.authors || []).join(", ").toLowerCase();
+
+            if (
+              query &&
+              !(title.includes(query) || category.includes(query) || authors.includes(query))
+            ) continue;
+
+            allTheses.push({ userId: null, thesisId, thesis, userData: {} });
+          }
+        }
+      } else {
+        let usersSnap = await get(ref(db, "users"));
+        let pendingSnap = await get(ref(db, "pendingTheses"));
+
+        const hasUsers = usersSnap.exists();
+        const hasPending = pendingSnap.exists();
+
+        if (!hasUsers && !hasPending) {
+          container.innerHTML = "";
+          msg.style.display = "block";
+          return;
+        }
+
+        // Get theses from users node
+        if (usersSnap.exists()) {
+          const users = usersSnap.val();
+          for (const [userId, userData] of Object.entries(users)) {
+            if (!userData.theses) continue;
+
+            for (const [thesisId, thesis] of Object.entries(userData.theses)) {
+              const title = (thesis.thesisTitle || "").toLowerCase();
+              const category = (thesis.thesisCategory || "").toLowerCase();
+              const authors = (thesis.authors || []).join(", ").toLowerCase();
+
+              if (query && !(title.includes(query) || category.includes(query) || authors.includes(query)))
+                continue;
+
+              const isApproved = thesis.approved === true;
+              const hasRevision = thesis.revisionRequest && Object.keys(thesis.revisionRequest).length > 0;
+
+              if (currentTab === "pending" && !isApproved && !hasRevision) {
+                allTheses.push({ userId, thesisId, thesis, userData });
+              } else if (currentTab === "needsRevision" && hasRevision) {
+                allTheses.push({ userId, thesisId, thesis, userData });
+              }
+            }
+          }
+        }
+
+        // Get theses from pendingTheses node (only for pending tab)
+        if (pendingSnap.exists() && currentTab === "pending") {
+          const pendingTheses = pendingSnap.val();
+          for (const [thesisId, thesis] of Object.entries(pendingTheses)) {
+            const title = (thesis.thesisTitle || "").toLowerCase();
+            const category = (thesis.thesisCategory || "").toLowerCase();
+            const authors = (thesis.authors || []).join(", ").toLowerCase();
+
+            if (query && !(title.includes(query) || category.includes(query) || authors.includes(query)))
+              continue;
+
+            // Avoid duplicates if thesis already included
+            if (!allTheses.some(t => t.thesisId === thesisId)) {
+              allTheses.push({ userId: thesis.userId || null, thesisId, thesis, userData: {} });
+            }
+          }
+        }
+      }
+      allTheses.sort((a, b) => (b.thesis.dateSubmitted || 0) - (a.thesis.dateSubmitted || 0));
+
+      const thesisItems = allTheses.map(({ userId, thesisId, thesis, userData }) => `
+        <div class="card" id="card-${thesisId}">
+          <div class="card-content">
+            ${currentTab === "needsRevision" ? `<div style="color:orange; font-weight:bold; margin-bottom:8px;">Revision Requested</div>` : ''}
+            <div class="thesis-title">${escapeHtml(thesis.thesisTitle)}</div>
+           
+          <div class="thesis-description" id="desc-${thesisId}" data-expanded="false">
+  ${getTruncatedDescription(thesis.thesisDescription, thesisId)}
+</div>
+
+            <div class="thesis-authors">Authors: ${(thesis.authors || []).map(a => escapeHtml(a)).join(", ")}</div>
+            <div class="thesis-category">Category: ${escapeHtml(thesis.thesisCategory || "N/A")}</div>
+            <div class="thesis-date">Date Submitted: ${new Date(thesis.dateSubmitted || 0).toLocaleString()}</div>
+            <div class="uploader">Uploaded by: ${escapeHtml(userData.name || "Unknown")}</div>
+            
+            ${currentTab === "needsRevision" && thesis.revisionRequest ? `
+                <div style="margin-top:10px; padding:10px; background:#fff7d6; border-radius:5px;">
+                  <div><strong>Revision Type:</strong> ${escapeHtml(thesis.revisionRequest.revisionType)}</div>
+                   <div class="requestOn"><strong>Requested On:</strong> ${new Date(thesis.revisionRequest.dateRequested).toLocaleString()}</div>
+                 <div class="revision-comments" id="rev-${thesisId}" data-expanded="false">
+  <strong>Comments:</strong> ${getTruncatedRevisionComment(thesis.revisionRequest.comments || "", thesisId)}
+</div>
+                </div>
+              ` : ''
+        }
+          </div>
+          <div class="btn-group">
+            <button class="view-pdf" onclick="window.open('${thesis.pdfUrl}', '_blank')">View</button>
+            ${currentTab === "pending" ? `
+              <button onclick="approveThesis('${userId}', '${thesisId}')">Approve</button>
+              <button onclick="openRevisionModal('${userId}', '${thesisId}')">Request Revision</button>
+            ` : currentTab === "needsRevision" ? `
+              
+            ` : currentTab === "uploaded" ? `
+              <button onclick="deleteThesis('${userId}', '${thesisId}')">Delete</button>
+            ` : ""}
+          </div>
+        </div>
+      `);
+
+      container.innerHTML = thesisItems.length > 0 ? thesisItems.join("") : "";
+      msg.style.display = thesisItems.length === 0 ? "block" : "none";
+    }
+    searchInput.addEventListener("input", renderTheses);
+
+    async function approveThesis(userId, thesisId) {
+      try {
+        const thesisRef = ref(db, `users/${userId}/theses/${thesisId}`);
+        const thesisSnap = await get(thesisRef);
+        if (!thesisSnap.exists()) return alert("Thesis not found.");
+        const thesis = thesisSnap.val();
+
+        thesis.approved = true;
+        // Clear revision request on approval
+        if (thesis.revisionRequest) {
+          await set(ref(db, `users/${userId}/theses/${thesisId}/revisionRequest`), null);
+        }
+
+        await set(ref(db, `users/${userId}/theses/${thesisId}/approved`), true);
+        await set(ref(db, `approvedTheses/${thesisId}`), thesis);
+        alert("Thesis approved.");
+        renderTheses();
+      } catch (error) {
+        console.error(error);
+        alert("Failed to approve thesis.");
+      }
+    }
+
+
+  async function deleteThesis(userId, thesisId) {
+  if (!confirm("Are you sure you want to delete this thesis?")) return;
+
+  try {
+    // 1️⃣ Always remove from approvedTheses
+    await remove(ref(db, `approvedTheses/${thesisId}`));
+
+    // 2️⃣ Always remove from pendingTheses (in case it somehow still exists)
+    await remove(ref(db, `pendingTheses/${thesisId}`));
+
+    // 3️⃣ Remove from user's theses if userId exists
+    if (userId && userId !== "null" && userId !== "undefined") {
+      await remove(ref(db, `users/${userId}/theses/${thesisId}`));
+    } else {
+      // 4️⃣ If no userId, search all users for this thesis and remove it
+      const usersSnap = await get(ref(db, "users"));
+      if (usersSnap.exists()) {
+        const users = usersSnap.val();
+        for (const [uid, userData] of Object.entries(users)) {
+          if (userData.theses && userData.theses[thesisId]) {
+            await remove(ref(db, `users/${uid}/theses/${thesisId}`));
+            console.log(`Removed thesis ${thesisId} from user ${uid}`);
+          }
+        }
+      }
+    }
+
+    showToast("Thesis deleted successfully.", "success");
+    renderTheses();
+  } catch (error) {
+    console.error(error);
+    showToast("Failed to delete thesis.", "error");
+  }
+}
+
+window.deleteThesis = deleteThesis;
+
+
+
+
+    function openRevisionModal(userId, thesisId) {
+      revisionUserId = userId;
+      revisionThesisId = thesisId;
+      revisionCommentsEl.value = "";
+      revisionModal.style.display = "flex";
+    }
+
+    cancelRevisionBtn.onclick = () => {
+      revisionModal.style.display = "none";
+    };
+
+    submitRevisionBtn.onclick = async () => {
+      const revisionType = document.querySelector('input[name="revisionType"]:checked').value;
+      const comments = revisionCommentsEl.value.trim();
+      if (!comments) return alert("Please add comments.");
+
+      try {
+        const revisionData = {
+          revisionType,
+          comments,
+          dateRequested: Date.now(),
+          status: "pending"
+        };
+
+        if (revisionUserId) {
+          // Thesis under a user
+          await set(ref(db, `users/${revisionUserId}/theses/${revisionThesisId}/revisionRequest`), revisionData);
+          await set(ref(db, `users/${revisionUserId}/theses/${revisionThesisId}/approved`), false);
+        } else {
+          // Pending thesis
+          await set(ref(db, `pendingTheses/${revisionThesisId}/revisionRequest`), revisionData);
+          await set(ref(db, `pendingTheses/${revisionThesisId}/approved`), false);
+        }
+
+        alert("Revision requested.");
+        revisionModal.style.display = "none";
+        renderTheses();
+      } catch (error) {
+        console.error(error);
+        alert("Failed to send revision request.");
+      }
+    };
+
+
+    window.approveThesis = approveThesis;
+    window.openRevisionModal = openRevisionModal;
+    window.deleteThesis = deleteThesis;
+
+    function truncateText(text, maxLength = 150) {
+      return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
+    }
+
+    function getTruncatedDescription(desc = "", thesisId = "") {
+      const fullText = escapeHtml(desc);
+      const shortText = escapeHtml(truncateText(desc));
+      const isLong = desc.length > 150;
+
+      return isLong
+        ? `${shortText}<span class="toggle-link" onclick="toggleDescription('${thesisId}', \`${fullText}\`, \`${shortText}\`)"> See more...</span>`
+        : fullText;
+    }
+
+    function getTruncatedRevisionComment(comment = "", thesisId = "") {
+      const fullText = escapeHtml(comment, true); // ← line breaks preserved here
+      const shortText = escapeHtml(truncateText(comment), true);
+      const isLong = comment.length > 150;
+
+      return isLong
+        ? `${shortText}<span class="toggle-link" onclick="toggleRevisionComment('${thesisId}', \`${fullText}\`, \`${shortText}\`)"> See more...</span>`
+        : fullText;
+    }
+
+
+    window.toggleDescription = function (thesisId, fullText, shortText) {
+      const el = document.getElementById(`desc-${thesisId}`);
+      const isExpanded = el.getAttribute("data-expanded") === "true";
+
+      if (isExpanded) {
+        el.innerHTML = `${shortText}<span class="toggle-link" onclick="toggleDescription('${thesisId}', \`${fullText}\`, \`${shortText}\`)"> See more...</span>`;
+        el.setAttribute("data-expanded", "false");
+      } else {
+        el.innerHTML = `${fullText}<span class="toggle-link" onclick="toggleDescription('${thesisId}', \`${fullText}\`, \`${shortText}\`)"> See less</span>`;
+        el.setAttribute("data-expanded", "true");
+      }
+    };
+
+
+    window.toggleRevisionComment = function (thesisId, fullText, shortText) {
+      const el = document.getElementById(`rev-${thesisId}`);
+      const isExpanded = el.getAttribute("data-expanded") === "true";
+
+      if (isExpanded) {
+        el.innerHTML = `<strong>Comments:</strong> ${shortText}<span class="toggle-link" onclick="toggleRevisionComment('${thesisId}', \`${fullText}\`, \`${shortText}\`)"> See more...</span>`;
+        el.setAttribute("data-expanded", "false");
+      } else {
+        el.innerHTML = `<strong>Comments:</strong> ${fullText}<span class="toggle-link" onclick="toggleRevisionComment('${thesisId}', \`${fullText}\`, \`${shortText}\`)"> See less</span>`;
+        el.setAttribute("data-expanded", "true");
+      }
+    };
+
+
+
+    // Upload Modal Elements
+    const addThesisBtn = document.getElementById("addThesisBtn");
+    const uploadModal = document.getElementById("uploadModal");
+    const uploadCancelBtn = document.getElementById("uploadCancelBtn");
+
+    const uploadSubmitBtn = document.getElementById("uploadSubmitBtn");
+
+    const loadingOverlay = document.getElementById("loadingOverlay");
+
+    function showLoading() {
+      loadingOverlay.style.display = "flex";
+    }
+
+    function hideLoading() {
+      loadingOverlay.style.display = "none";
+    }
+
+
+    uploadSubmitBtn.onclick = async () => {
+      const title = document.getElementById("uploadTitle").value.trim();
+      const description = document.getElementById("uploadDescription").value.trim();
+      const authorsRaw = document.getElementById("uploadAuthors").value.trim();
+      const category = document.getElementById("uploadCategory").value;
+      const file = document.getElementById("uploadPDF").files[0];
+
+      if (!title || !description || !authorsRaw || !category || !file) {
+        return alert("Please complete all fields and upload a PDF.");
+      }
+
+      showLoading(); // Show loading spinner
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("folder", "e-compendium");
+
+      try {
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`, {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!data.secure_url) throw new Error("Upload failed");
+
+        const pdfUrl = data.secure_url;
+
+        const thesisId = Date.now().toString();
+        const thesisData = {
+          thesisTitle: title,
+          thesisDescription: description,
+          authors: authorsRaw.split(",").map(a => a.trim()),
+          thesisCategory: category,
+          pdfUrl,
+          dateSubmitted: Date.now(),
+          approved: false,
+        };
+
+        // ✅ Save to "pendingTheses" instead of under user ID
+        await set(ref(db, `pendingTheses/${thesisId}`), thesisData);
+
+        alert("Thesis uploaded successfully.");
+        uploadModal.style.display = "none";
+
+        // Clear form fields
+        document.getElementById("uploadTitle").value = "";
+        document.getElementById("uploadDescription").value = "";
+        document.getElementById("uploadAuthors").value = "";
+        document.getElementById("uploadCategory").value = "";
+        document.getElementById("uploadPDF").value = "";
+
+        if (currentTab === "pending") renderTheses();
+
+      } catch (error) {
+        console.error(error);
+        alert("Failed to upload thesis.");
+      } finally {
+        hideLoading(); // Hide loading spinner
+      }
+    };
+
+
+    addThesisBtn.onclick = () => {
+      uploadModal.style.display = "flex";
+    };
+
+    uploadCancelBtn.onclick = () => {
+      uploadModal.style.display = "none";
+    };
+
+    // Optional: Close modal when clicking outside content
+    window.onclick = (e) => {
+      if (e.target === uploadModal) {
+        uploadModal.style.display = "none";
+      }
+    };
+
+    async function renderPendingThesesFromNode() {
+      const pendingRef = ref(db, "pendingTheses");
+      const pendingSnap = await get(pendingRef);
+
+      container.innerHTML = "";
+      msg.style.display = "none";
+
+      if (!pendingSnap.exists()) {
+        msg.style.display = "block";
+        return;
+      }
+
+      const theses = pendingSnap.val();
+      const allTheses = Object.entries(theses)
+        .map(([thesisId, thesis]) => ({ thesisId, thesis }))
+        .sort((a, b) => (b.thesis.dateSubmitted || 0) - (a.thesis.dateSubmitted || 0));
+
+      const thesisItems = allTheses.map(({ thesisId, thesis }) => `
+    <div class="card" id="card-${thesisId}">
+      <div class="card-content">
+        <div class="thesis-title">${escapeHtml(thesis.thesisTitle)}</div>
+        <div class="thesis-description" id="desc-${thesisId}" data-expanded="false">
+          ${getTruncatedDescription(thesis.thesisDescription, thesisId)}
+        </div>
+        <div class="thesis-authors">Authors: ${(thesis.authors || []).map(a => escapeHtml(a)).join(", ")}</div>
+        <div class="thesis-category">Category: ${escapeHtml(thesis.thesisCategory || "N/A")}</div>
+        <div class="thesis-date">Date Submitted: ${new Date(thesis.dateSubmitted || 0).toLocaleString()}</div>
+      </div>
+
+      <div class="btn-group">
+        <button class="view-pdf" onclick="window.open('${thesis.pdfUrl}', '_blank')">View</button>
+        <button onclick="approvePendingThesis('${thesisId}')">Approve</button>
+        <button onclick="openRevisionModalFromPending('${thesisId}')">Request Revision</button>
+      </div>
+    </div>
+  `);
+
+      container.innerHTML = thesisItems.join("");
+      msg.style.display = thesisItems.length === 0 ? "block" : "none";
+    }
+
+    async function approvePendingThesis(thesisId) {
+  try {
+    const thesisRef = ref(db, `pendingTheses/${thesisId}`);
+    const thesisSnap = await get(thesisRef);
+
+    if (!thesisSnap.exists()) return showToast("Thesis not found.", "error");
+
+    const thesis = thesisSnap.val();
+    thesis.approved = true;
+
+    // Clear revision request if any
+    if (thesis.revisionRequest) {
+      await set(ref(db, `pendingTheses/${thesisId}/revisionRequest`), null);
+    }
+
+    // Move to approvedTheses
+    await set(ref(db, `approvedTheses/${thesisId}`), thesis);
+    await remove(ref(db, `pendingTheses/${thesisId}`));
+
+    showToast("Thesis approved successfully!", "success");
+    renderPendingThesesFromNode();
+  } catch (error) {
+    console.error(error);
+    showToast("Failed to approve thesis.", "error");
+  }
+}
+
+window.approvePendingThesis = approvePendingThesis;
+
+
+console.log("Approving thesis ID:", thesisId);
+console.log("Database path:", `pendingTheses/${thesisId}`);
+const pendingSnap = await get(pendingRef);
+console.log("Snapshot exists:", pendingSnap.exists());
+console.log("Snapshot value:", pendingSnap.val());
+
+
+    function openRevisionModalFromPending(thesisId) {
+      revisionUserId = null; // No user ID for pending theses
+      revisionThesisId = thesisId;
+      revisionCommentsEl.value = "";
+      revisionModal.style.display = "flex";
+    }
+
+    function showToast(message, type = "info") {
+  const bgColor =
+    type === "success" ? "linear-gradient(to right, #00b09b, #96c93d)" :
+    type === "error" ? "linear-gradient(to right, #ff5f6d, #ffc371)" :
+    "linear-gradient(to right, #2193b0, #6dd5ed)";
+
+  Toastify({
+    text: message,
+    duration: 3000,
+    close: true,
+    gravity: "top", // top or bottom
+    position: "right", // left, center, right
+    stopOnFocus: true,
+    style: {
+      background: bgColor,
+      borderRadius: "8px",
+      boxShadow: "0 3px 6px rgba(0,0,0,0.1)"
+    }
+  }).showToast();
+}
+
+
+
+  </script>
+</body>
+
+</html>

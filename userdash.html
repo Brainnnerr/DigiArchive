@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>User Dashboard - Submit Thesis</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
+  <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/userdash.css">
+</head>
+
+<body>
+  <header class="main-header">
+    <h1>Submit Thesis</h1>
+  </header>
+
+  <div class="dashboard-container">
+
+
+
+
+    <div class="upload-section">
+      <h2>SUBMIT THESIS</h2>
+
+      <div class="form-group">
+        <label for="authorName">Author's Name</label>
+        <input type="text" id="authorName" placeholder="Enter author's name" />
+        <button id="submitAuthorBtn" onclick="submitAuthor()">Add Author</button>
+        <div class="author-list" id="authorListDisplay"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="thesisTitle">Thesis Title</label>
+        <input type="text" id="thesisTitle" placeholder="Enter thesis title" />
+      </div>
+
+      <div class="form-group">
+        <label for="thesisDescription">Thesis Description</label>
+        <textarea id="thesisDescription" placeholder="Enter thesis description"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="thesisCategory">Thesis Category</label>
+        <select id="thesisCategory">
+          <option value="">-- Select Category --</option>
+          <option value="Computer Science">Computer Science</option>
+          <option value="Engineering">Engineering</option>
+          <option value="Education">Education</option>
+          <option value="Business">Business</option>
+          <option value="Arts & Humanities">Arts & Humanities</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Health & Medicine">Health & Medicine</option>
+          <option value="Law">Law</option>
+          <option value="Science">Science</option>
+          <option value="Social Sciences">Social Sciences</option>
+          <option value="Environmental Studies">Environmental Studies</option>
+          <option value="Information Technology">Information Technology</option>
+          <option value="Design & Architecture">Design & Architecture</option>
+          <option value="Psychology">Psychology</option>
+          <option value="Languages & Literature">Languages & Literature</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="pdfUpload">Select PDF File</label>
+        <input type="file" id="pdfUpload" accept="application/pdf" />
+      </div>
+
+      <button onclick="uploadPDF()">Submit Thesis</button>
+    </div>
+
+
+
+  </div>
+
+  <!-- Custom Confirmation Modal -->
+  <div id="confirmationModal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
+    <div
+      style="background:#fff; color:#000; padding:20px; border-radius:8px; text-align:center; max-width:400px; width:90%;">
+      <h3>Are you sure you want to submit?</h3>
+      <p>Please confirm your thesis upload.</p>
+      <button id="confirmYesBtn"
+        style="background:#005700; color:white; margin:10px; padding:10px 20px; border:none; border-radius:5px;">Yes</button>
+      <button id="confirmNoBtn"
+        style="background:#ffd700; color:white; margin:10px; padding:10px 20px; border:none; border-radius:5px;">No</button>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p>Uploading, please wait...</p>
+    </div>
+  </div>
+
+
+
+
+
+
+  <!-- Toastify JS -->
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+    import { getDatabase, ref, get, child, push, set } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeVVb7PfLG4kvw4HYgaUqTxzcgY9qpi-A",
+      authDomain: "e-compedium.firebaseapp.com",
+      databaseURL: "https://e-compedium-default-rtdb.firebaseio.com/",
+      projectId: "e-compedium",
+      storageBucket: "e-compedium.firebasestorage.app",
+      messagingSenderId: "1084002262207",
+      appId: "1:1084002262207:web:ecec40b9ed2020a02a3a0a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    let authorsArray = [];
+
+    const CLOUD_NAME = "dsinpip3y";
+    const UPLOAD_PRESET = "ecompendium";
+
+    // Toastify utility
+    function showToast(message, type = "info") {
+      Toastify({
+        text: message,
+        duration: 4000,
+        gravity: "top",
+        position: "center",
+        backgroundColor: type === "success"
+          ? "linear-gradient(to right, #00b09b, #96c93d)"
+          : type === "error"
+            ? "linear-gradient(to right, #ff5f6d, #ffc371)"
+            : "#333",
+        stopOnFocus: true
+      }).showToast();
+    }
+
+    window.submitAuthor = function () {
+      const authorInput = document.getElementById("authorName");
+      const authorName = authorInput.value.trim();
+
+      if (!authorName) {
+        showToast("Please enter the author's name.", "error");
+        return;
+      }
+
+      if (authorsArray.some(name => name.toLowerCase() === authorName.toLowerCase())) {
+        showToast("This author is already added.", "error");
+        return;
+      }
+
+      authorsArray.push(authorName);
+      updateAuthorListUI();
+      authorInput.value = "";
+    };
+
+    function updateAuthorListUI() {
+      const list = document.getElementById("authorListDisplay");
+      list.innerHTML = authorsArray.map((name, index) => `
+        <div class="author-list-item">
+          <span>${name}</span>
+          <button class="remove-btn" onclick="removeAuthor(${index})">Remove</button>
+        </div>
+      `).join('');
+    }
+
+    window.removeAuthor = function (index) {
+      authorsArray.splice(index, 1);
+      updateAuthorListUI();
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+      const snapshot = await get(child(ref(db), `users/${user.uid}`));
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        document.getElementById("username").textContent = data.name;
+        document.getElementById("studentNumber").textContent = data.student;
+      }
+    });
+
+    window.logout = function () {
+      signOut(auth).then(() => {
+        localStorage.removeItem("currentUser");
+        window.location.href = "login.html";
+      });
+    };
+
+    window.uploadPDF = function () {
+      const thesisTitle = document.getElementById("thesisTitle").value.trim();
+      const thesisDescription = document.getElementById("thesisDescription").value.trim();
+      const thesisCategory = document.getElementById("thesisCategory").value.trim();
+      const file = document.getElementById("pdfUpload").files[0];
+
+      if (authorsArray.length === 0) {
+        showToast("Please add at least one author.", "error");
+        return;
+      }
+
+      if (!thesisTitle || !thesisDescription || !thesisCategory || !file) {
+        showToast("All fields are required, including category and PDF file.", "error");
+        return;
+      }
+
+      if (file.type !== "application/pdf") {
+        showToast("Only PDF files are allowed.", "error");
+        return;
+      }
+
+      // Show confirmation modal
+      document.getElementById("confirmationModal").style.display = "flex";
+
+      // Confirm Yes
+      document.getElementById("confirmYesBtn").onclick = () => {
+        document.getElementById("confirmationModal").style.display = "none";
+        doUpload(thesisTitle, thesisDescription, thesisCategory, file);
+      };
+
+      // Confirm No
+      document.getElementById("confirmNoBtn").onclick = () => {
+        document.getElementById("confirmationModal").style.display = "none";
+        showToast("Submission cancelled.", "info");
+      };
+    };
+
+    async function doUpload(thesisTitle, thesisDescription, thesisCategory, file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", UPLOAD_PRESET);
+
+      // Show loading
+      document.getElementById("loadingOverlay").style.display = "flex";
+
+      try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`, {
+          method: "POST",
+          body: formData
+        });
+
+        if (!res.ok) throw new Error("Upload failed");
+        const data = await res.json();
+        const pdfUrl = data.secure_url;
+
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not authenticated");
+
+        const thesisRef = push(ref(db, `users/${user.uid}/theses`));
+        await set(thesisRef, {
+          authors: authorsArray,
+          thesisTitle,
+          thesisDescription,
+          thesisCategory,
+          pdfUrl,
+          uploadedAt: Date.now(),
+          dateSubmitted: new Date().toISOString()
+        });
+
+        showToast("Thesis uploaded successfully!", "success");
+
+        // Reset form
+        authorsArray = [];
+        updateAuthorListUI();
+        document.getElementById("thesisTitle").value = "";
+        document.getElementById("thesisDescription").value = "";
+        document.getElementById("thesisCategory").value = "";
+        document.getElementById("pdfUpload").value = "";
+
+      } catch (error) {
+        console.error("Upload error:", error);
+        showToast("Upload failed. Please try again.", "error");
+      } finally {
+        // Hide loading
+        document.getElementById("loadingOverlay").style.display = "none";
+      }
+    }
+
+
+  </script>
+
+</body>
+
+</html>

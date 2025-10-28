@@ -1,0 +1,520 @@
+ * {
+      margin: 0;padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'lato', sans-serif;
+      display: flex;
+      height: 100vh;
+      background: #f9f9f9;
+      overflow-y: auto;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: #005700;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding: 30px 20px;
+    }
+
+    .sidebar h2 {
+      font-size: 1.5rem;
+      margin-bottom: 30px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .sidebar ul {
+      list-style: none;
+    }
+
+    .sidebar ul li {
+      margin: 20px 0;
+      font-weight: 600;
+      cursor: pointer;
+      padding-left: 10px;
+      border-left: 3px solid transparent;
+      color: #fdfffd;
+      transition: 0.2s;
+      white-space: nowrap;
+    }
+
+    .sidebar ul li:hover,
+    .sidebar ul li.active {
+      color: #ebe70b;
+      border-left: 3px solid #ffcd00;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 40px;
+      overflow-y: auto;
+      background: #fff;
+    }
+
+    .main-content h1 {
+      font-size: 1.8rem;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 10px;
+    }
+
+    .card {
+      background: #f4f8f4;
+      border-left: 5px solid #f5f5f5;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+      flex-wrap: wrap;
+    }
+
+    .card-content {
+      font-family: 'Inter', sans-serif;
+      flex: 1;
+    }
+
+    .thesis-title {
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .thesis-description {
+      margin-bottom: 6px;
+      color: #333;
+      font-size: 15px;
+    }
+
+    .thesis-authors,
+    .thesis-category,
+    .thesis-date,
+    .uploader {
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-left: 20px;
+    }
+
+    .btn-group button {
+      font-family: 'Inter', sans-serif;
+      background: #ffcd00;
+      color: #000;
+      font-weight: 600;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      transition: 0.3s;
+      white-space: nowrap;
+    }
+
+    .btn-group button:hover {
+      background: #e6b800;
+    }
+
+    .view-pdf {
+      background: #007bff;
+      color: #fff;
+      border: none;
+    }
+
+    .view-pdf:hover {
+      background: #0056b3;
+    }
+
+    #noThesesMsg {
+      font-size: 1.2rem;
+      color: #999;
+      text-align: center;
+      margin-top: 40px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        padding: 10px 15px;
+        justify-content: space-between;
+        align-items: center;
+        text-align: center;
+      }
+
+      .sidebar h2 {
+        font-size: 1.2rem;
+        margin-bottom: 10px;
+        width: 100%;
+        white-space: normal;
+      }
+
+      .sidebar ul {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        width: 100%;
+        justify-content: center;
+        gap: 10px;
+        padding-left: 0;
+        margin: 0;
+      }
+
+      .sidebar ul li {
+        margin: 5px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+      }
+
+      .sidebar ul li:hover,
+      .sidebar ul li.active {
+        border-left: none;
+        border-bottom: 3px solid #ffcd00;
+      }
+
+      .main-content {
+        padding: 20px;
+      }
+
+      .card {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .btn-group {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 10px;
+        width: 100%;
+        margin-top: 15px;
+        margin-left: 0;
+      }
+
+      .btn-group button {
+        flex: 1 1 auto;
+        white-space: normal;
+      }
+    }
+
+    .logo-heading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 30px;
+      justify-content: center;
+    }
+
+    .logo-heading .logo {
+      height: 70px;
+      width: 70px;
+    }
+
+    .logo-heading h2 {
+      font-size: 1.2rem;
+      line-height: 1.2;
+      text-align: left;
+    }
+
+
+    /* Modal Overlay */
+    #revisionModal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.6);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      transition: opacity 0.3s ease;
+    }
+
+    /* Modal Content Box */
+    #revisionModal .modal-content {
+      background: #fff;
+      padding: 50px 40px;
+      border-radius: 12px;
+      width: 800px;
+      max-width: 95vw;
+      max-height: 90vh;
+      overflow-y: auto;
+      color: #333;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      animation: slideIn 0.3s ease;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1rem;
+    }
+
+
+
+    /* Title */
+    #revisionModal .modal-content h3 {
+      margin-bottom: 25px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #222;
+      text-align: center;
+    }
+
+    /* Radio Buttons */
+    #revisionModal label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+
+    /* Textarea */
+    #revisionComments {
+      width: 100%;
+      padding: 16px;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      resize: vertical;
+      min-height: 200px;
+      box-sizing: border-box;
+    }
+
+
+    /* Buttons */
+    #revisionModal button {
+      font-family: 'Poppins', sans-serif;
+      padding: 10px 16px;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: 0.2s ease;
+      font-weight: 600;
+    }
+
+    #submitRevisionBtn {
+      background-color: #ffcd00;
+      color: #000;
+    }
+
+    #submitRevisionBtn:hover {
+      background-color: #e6b800;
+    }
+
+    #cancelRevisionBtn {
+      background-color: #ccc;
+      margin-left: 10px;
+    }
+
+    #cancelRevisionBtn:hover {
+      background-color: #bbb;
+    }
+
+    /* Animation */
+    @keyframes slideIn {
+      from {
+        transform: translateY(-40px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      #revisionModal .modal-content {
+        width: 90%;
+        padding: 20px 15px;
+      }
+    }
+
+    .toggle-link {
+      color: #707070;
+      cursor: pointer;
+      font-weight: 60;
+      margin-left: 6px;
+    }
+
+    .toggle-link:hover {
+      text-decoration: none;
+    }
+
+    .revision-comments {
+      margin-top: 10px;
+      line-height: 1.5;
+      font-size: 15px;
+      color: #444;
+    }
+
+    .requestOn {
+      margin-top: 10px;
+      line-height: 1.5;
+      font-size: 15px;
+      color: #000000;
+    }
+
+    /* Floating "+" Button */
+    #addThesisBtn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 60px;
+      height: 60px;
+      background-color: #005700;
+      color: white;
+      font-size: 36px;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 2000;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+      transition: background 0.3s ease;
+    }
+
+    #addThesisBtn:hover {
+      background-color: #007000;
+    }
+
+    /* Upload Modal Styles */
+    #uploadModal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.6);
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+
+    .upload-modal-content {
+      background: #fff;
+      padding: 40px 30px;
+      border-radius: 12px;
+      width: 500px;
+      max-width: 90vw;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      font-family: 'Poppins', sans-serif;
+      animation: slideIn 0.3s ease;
+    }
+
+    .upload-modal-content h3 {
+      margin-bottom: 20px;
+      font-size: 1.4rem;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .upload-modal-content input[type="text"],
+    .upload-modal-content textarea,
+    .upload-modal-content input[type="file"] {
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 10px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .upload-modal-content textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .modal-buttons {
+      text-align: right;
+      margin-top: 20px;
+    }
+
+    .modal-buttons button {
+      font-family: 'Poppins', sans-serif;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    #uploadSubmitBtn {
+      background-color: #005700;
+      color: white;
+    }
+
+    #uploadSubmitBtn:hover {
+      background-color: #007000;
+    }
+
+    #uploadCancelBtn {
+      background-color: #ccc;
+    }
+
+    #uploadCancelBtn:hover {
+      background-color: #bbb;
+    }
+
+    #uploadModal select#uploadCategory {
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 12px 14px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background-color: #fff;
+      font-family: 'Poppins', sans-serif;
+      appearance: none;
+      background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="gray"><path d="M4 6l4 4 4-4z"/></svg>');
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      background-size: 12px;
+    }
+
+
+    #loadingOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.4);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #005700;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
