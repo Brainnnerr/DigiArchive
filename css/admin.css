@@ -48,6 +48,17 @@
       border-left: 3px solid #ffcd00;
     }
 
+    .badge {
+      background: red;
+      color: white;
+      border-radius: 50%;
+      padding: 2px 6px;
+      font-size: 0.7rem;
+      margin-left: 6px;
+      font-weight: bold;
+      display: inline-block;
+    }
+
     .main-content {
       flex: 1;
       padding: 40px;

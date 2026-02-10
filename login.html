@@ -146,7 +146,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut }
       from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-    import { getDatabase, ref, set, get, child }
+    import { getDatabase, ref, set, get, child, push }
       from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
     const firebaseConfig = {
@@ -229,14 +229,41 @@
           return toast("Student number already used", "red");
         }
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const uid = userCredential.user.uid;
+        // Check if email is already pending
+        const pendingRef = ref(db, 'pendingRegistrations');
+        const pendingSnap = await get(pendingRef);
+        if (pendingSnap.exists()) {
+          const pendingUsers = Object.values(pendingSnap.val());
+          if (pendingUsers.some(user => user.email === email)) {
+            return toast("Registration already pending approval", "orange");
+          }
+          if (pendingUsers.some(user => user.student === student)) {
+            return toast("Student number already pending approval", "orange");
+          }
+        }
 
-        await set(studentRef, uid);
-        await set(ref(db, 'users/' + uid), { name, email, student });
+        // Check if user already exists
+        const usersRef = ref(db, 'users');
+        const usersSnap = await get(usersRef);
+        if (usersSnap.exists()) {
+          const users = Object.values(usersSnap.val());
+          if (users.some(user => user.email === email)) {
+            return toast("Email already registered", "red");
+          }
+        }
 
-        toast("Registered successfully!", "green");
-        await signOut(auth);
+        // Save to pending registrations instead of creating account
+        const newPendingRef = push(ref(db, 'pendingRegistrations'));
+        await set(newPendingRef, {
+          name,
+          email,
+          password,
+          student,
+          requestedAt: Date.now(),
+          status: "pending"
+        });
+
+        toast("Registration submitted! Please wait for admin approval.", "green");
         showStudent();
       } catch (error) {
         toast(error.message, "red");
@@ -260,12 +287,24 @@
       }
 
       try {
+        // Check if registration is still pending
+        const pendingRef = ref(db, 'pendingRegistrations');
+        const pendingSnap = await get(pendingRef);
+        if (pendingSnap.exists()) {
+          const pendingUsers = Object.values(pendingSnap.val());
+          const isPending = pendingUsers.some(user => user.email === email || user.student === studentNumber);
+          if (isPending) {
+            return toast("Your registration is pending admin approval", "orange");
+          }
+        }
+
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const uid = userCredential.user.uid;
         const snapshot = await get(child(ref(db), `users/${uid}`));
 
         if (!snapshot.exists()) {
-          return toast("User not found", "red");
+          await signOut(auth);
+          return toast("Account not approved yet", "red");
         }
 
         const userData = snapshot.val();
@@ -278,6 +317,9 @@
         toast("Login successful!", "green");
         window.location.href = "user.html";
       } catch (error) {
+        if (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential") {
+          return toast("Invalid email or password", "red");
+        }
         toast(error.message, "red");
       }
     };

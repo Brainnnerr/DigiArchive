@@ -22,6 +22,7 @@
       <li class="active" data-tab="pending">Pending Thesis</li>
       <li data-tab="uploaded">Uploaded Thesis</li>
       <li data-tab="needsRevision">Revision Requests</li>
+      <li data-tab="pendingUsers">Pending Registrations <span id="pendingRegBadge" class="badge" style="display:none;">0</span></li>
       <li style="margin-top: auto; cursor:pointer; color:#ffaaaa;" id="logoutBtn">Logout</li>
     </ul>
   </div>
@@ -99,6 +100,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
     import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+    import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDeVVb7PfLG4kvw4HYgaUqTxzcgY9qpi-A",
@@ -122,7 +124,8 @@
 
   // Load default tab (Pending Thesis)
   currentTab = "pending";
- renderTheses();
+  renderTheses();
+  updatePendingRegBadge();
 });
 
 
@@ -170,6 +173,8 @@
   renderPendingThesesFromNode();
 } else if (currentTab === "uploaded" || currentTab === "needsRevision") {
   renderTheses();
+} else if (currentTab === "pendingUsers") {
+  renderPendingRegistrations();
 }
       };
 
@@ -656,14 +661,6 @@ window.deleteThesis = deleteThesis;
 
 window.approvePendingThesis = approvePendingThesis;
 
-
-console.log("Approving thesis ID:", thesisId);
-console.log("Database path:", `pendingTheses/${thesisId}`);
-const pendingSnap = await get(pendingRef);
-console.log("Snapshot exists:", pendingSnap.exists());
-console.log("Snapshot value:", pendingSnap.val());
-
-
     function openRevisionModalFromPending(thesisId) {
       revisionUserId = null; // No user ID for pending theses
       revisionThesisId = thesisId;
@@ -692,7 +689,110 @@ console.log("Snapshot value:", pendingSnap.val());
   }).showToast();
 }
 
+    async function renderPendingRegistrations() {
+      const pendingRegRef = ref(db, "pendingRegistrations");
+      const pendingSnap = await get(pendingRegRef);
 
+      container.innerHTML = "";
+      msg.style.display = "none";
+
+      if (!pendingSnap.exists()) {
+        msg.textContent = "No pending registrations.";
+        msg.style.display = "block";
+        return;
+      }
+
+      const registrations = pendingSnap.val();
+      const allRegs = Object.entries(registrations)
+        .map(([regId, reg]) => ({ regId, reg }))
+        .sort((a, b) => (b.reg.requestedAt || 0) - (a.reg.requestedAt || 0));
+
+      const regItems = allRegs.map(({ regId, reg }) => `
+        <div class="card" id="card-${regId}">
+          <div class="card-content">
+            <div class="thesis-title">${escapeHtml(reg.name)}</div>
+            <div><strong>Email:</strong> ${escapeHtml(reg.email)}</div>
+            <div><strong>Student Number:</strong> ${escapeHtml(reg.student)}</div>
+            <div><strong>Requested On:</strong> ${new Date(reg.requestedAt || 0).toLocaleString()}</div>
+          </div>
+          <div class="btn-group">
+            <button onclick="approveRegistration('${regId}')">Approve</button>
+            <button onclick="rejectRegistration('${regId}')" style="background:#dc3545;">Reject</button>
+          </div>
+        </div>
+      `);
+
+      container.innerHTML = regItems.join("");
+      msg.style.display = regItems.length === 0 ? "block" : "none";
+    }
+
+    async function approveRegistration(regId) {
+      try {
+        const regRef = ref(db, `pendingRegistrations/${regId}`);
+        const regSnap = await get(regRef);
+
+        if (!regSnap.exists()) {
+          return showToast("Registration not found.", "error");
+        }
+
+        const regData = regSnap.val();
+
+        const userCredential = await createUserWithEmailAndPassword(auth, regData.email, regData.password);
+        const uid = userCredential.user.uid;
+
+        await set(ref(db, `student_numbers/${regData.student}`), uid);
+        await set(ref(db, `users/${uid}`), {
+          name: regData.name,
+          email: regData.email,
+          student: regData.student
+        });
+
+        await remove(regRef);
+
+        showToast("Registration approved successfully!", "success");
+        renderPendingRegistrations();
+        updatePendingRegBadge();
+      } catch (error) {
+        console.error(error);
+        showToast(`Failed to approve: ${error.message}`, "error");
+      }
+    }
+
+    async function rejectRegistration(regId) {
+      if (!confirm("Are you sure you want to reject this registration?")) return;
+
+      try {
+        const regRef = ref(db, `pendingRegistrations/${regId}`);
+        await remove(regRef);
+        showToast("Registration rejected.", "success");
+        renderPendingRegistrations();
+        updatePendingRegBadge();
+      } catch (error) {
+        console.error(error);
+        showToast("Failed to reject registration.", "error");
+      }
+    }
+
+    window.approveRegistration = approveRegistration;
+    window.rejectRegistration = rejectRegistration;
+
+    async function updatePendingRegBadge() {
+      const pendingRegRef = ref(db, "pendingRegistrations");
+      const pendingSnap = await get(pendingRegRef);
+      const badge = document.getElementById("pendingRegBadge");
+
+      if (pendingSnap.exists()) {
+        const count = Object.keys(pendingSnap.val()).length;
+        if (count > 0) {
+          badge.textContent = count;
+          badge.style.display = "inline-block";
+        } else {
+          badge.style.display = "none";
+        }
+      } else {
+        badge.style.display = "none";
+      }
+    }
 
   </script>
 </body>
